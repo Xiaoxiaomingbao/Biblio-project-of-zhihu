@@ -1,6 +1,6 @@
 # Biblio-project-of-zhihu
 
-本项目用于爬取知乎电子书网页，并将其制成epub格式。
+本项目用于连续下载知乎电子书网页，并将其制成epub格式。
 
 第一步：利用Chrome插件SingleFile连续下载电子书网页（还有contents.html）至一个文件夹中，这一步可以利用程序continue_download_SingleFile v1.0.py，也可以手动进行。
 
@@ -14,4 +14,4 @@
 
 第六步：由于不同阅读器对epub格式标准的要求不同，最好再用Sigil对epub文件进行修正。主要是完善元数据和重置封面。
 
-以上只是大致流程，欲知详情请参见我在telegram频道上发布的图文教程
+以上只是大致流程，欲知详情请参见我在telegram频道上发布的图文教程https://t.me/BiblioBiblioBiblio/84
