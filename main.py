@@ -1,9 +1,6 @@
-import os
-
-
-from get_contents import get_contents_list
-from HTML_refine import refine
-from image_arrange import *
+from src.get_contents import get_contents_list
+from src.HTML_refine import refine
+from src.image_arrange import *
 
 
 # 获取电子书的书名（文件夹名）

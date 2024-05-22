@@ -112,5 +112,5 @@ set_the_ncx(contents_list,book_name)
 # 复制两个固定文件
 container_path = os.path.join(book_name,'META-INF')
 os.mkdir(container_path)
-shutil.copy('container.xml',container_path)
-shutil.copy('mimetype',book_name)
+shutil.copy('../res/container.xml', container_path)
+shutil.copy('../res/mimetype', book_name)

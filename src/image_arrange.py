@@ -43,7 +43,7 @@ def arrange(html_path, Images_path, accu):
         start = match.start(1)
         # 使用上一次的end和这一次的start，第一次end使用前定为0
         temp = temp + html_content[end:start]
-        img_path = os.path.join('..', 'Images', img_name)
+        img_path = os.path.join('../..', 'Images', img_name)
         temp = temp + img_path
         end = match.end(1)
 
