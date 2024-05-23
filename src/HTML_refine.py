@@ -3,20 +3,34 @@ import cssutils
 from pythonds.basic import Stack
 
 
-# 用来获取一对不带属性的标签间的字符串，只找出现的第一对标签，order为真则返回的字符串不含两侧标签
-def tag_pair(text,tag_name,order):
-    global pre_range
+class SubstringNotFoundError(Exception):
+    """自定义异常：找不到指定的子串"""
+    def __init__(self, substring):
+        super().__init__(f"Element '{substring}' not found.")
+        self.sub = substring
+
+
+def tag_pair(text, tag_name, order):
+    """用来获取一对不带属性的标签间的字符串，只找出现的第一对标签，order为真则返回的字符串不含两侧标签"""
+    if not hasattr(tag_pair, 'saved'):
+        tag_pair.saved = 0
     st = '<' + tag_name + '>'
     nd = '</' + tag_name + '>'
-    for i in range(pre_range,len(text)):
+    start = None
+    end = None
+    for i in range(tag_pair.saved, len(text)):
         if text[i:i + len(st)] == st:
             start = i + len(st)
             break
-    for i in range(start,len(text)):
+    if start is None:
+        raise SubstringNotFoundError(st)
+    for i in range(start, len(text)):
         if text[i:i + len(nd)] == nd:
             end = i - 1
             break
-    pre_range = end
+    if end is None:
+        raise SubstringNotFoundError(nd)
+    tag_pair.saved = end
     if order:
         return text[start:end + 1]
     else:
@@ -24,9 +38,9 @@ def tag_pair(text,tag_name,order):
 
 
 def get_selector_text(selector):
-    slct = str(selector)
-    pat_selector = re.compile(r'selectorText=\'(.+)\'',flags=0)
-    match = pat_selector.search(slct)
+    select = str(selector)
+    pat_selector = re.compile(r'selectorText=\'(.+)\'', flags=0)
+    match = pat_selector.search(select)
     return match.group(1)
 
 
@@ -56,8 +70,8 @@ def get_block_classes(block):
     return classes
 
 
-def verify_class(slc,classes):
-    pat_css_class = re.compile(r'\.([\w-]+)',flags=0)
+def verify_class(slc, classes):
+    pat_css_class = re.compile(r'\.([\w-]+)', flags=0)
     # 因为难以获取css中的标签名，就只好这样了
     if 'button' in slc or 'Button' in slc:
         start = False
@@ -69,13 +83,13 @@ def verify_class(slc,classes):
     return start
 
 
-def rule_process(rule,classes):
+def rule_process(rule, classes):
     i = 0
     new_selectors_text = ''
     for selector in rule.selectorList:
         # 万万不可直接类型强转
         slc = get_selector_text(selector)
-        if verify_class(slc,classes):
+        if verify_class(slc, classes):
             if not i:
                 new_selectors_text = new_selectors_text + slc
             else:
@@ -90,7 +104,7 @@ def rule_process(rule,classes):
         return ''
 
 
-def modify_css(css,classes):
+def modify_css(css, classes):
     # 创建一个新的 CSSStyleSheet 对象
     new_sheet = cssutils.css.CSSStyleSheet()
     # 创建CSS解析器
@@ -100,7 +114,7 @@ def modify_css(css,classes):
 
     for rule in sheet:
         if rule.type == rule.STYLE_RULE:
-            new_rule = rule_process(rule,classes)
+            new_rule = rule_process(rule, classes)
             if new_rule:
                 new_sheet.insertRule(new_rule)
 
@@ -115,16 +129,20 @@ def get_tag_class(tag):
     try:
         match = pat_class.search(tag)
         return match.group(1)
-    except:
+    except AttributeError:
+        # 捕获在调用 match.group(1) 时引发的异常
+        return ''
+    except re.error:
+        # 捕获正则表达式错误
         return ''
 
 
-def modify_span(html,classes):
+def modify_span(html, classes):
     new_html = ''
-    
+
     # 先遍历span标签，这里只考虑span的class属性
     pat_span_st = re.compile(r'<span[^>]*?>')
-    pat_span_nd = re.compile(r'<[/]span[^>]*?>')
+    pat_span_nd = re.compile(r'</span[^>]*?>')
     span_st = []
     span_nd = []
 
@@ -133,7 +151,7 @@ def modify_span(html,classes):
 
     for match in pat_span_nd.finditer(html):
         span_nd.append(match.span())
-    
+
     i = 0
     j = 0
     k = 0
@@ -166,25 +184,22 @@ def modify_span(html,classes):
 
 
 def refine(html):
-    global pre_range
-    pre_range = 0
-
     # 提取出CSS和所需块元素的文本字符串，当然还有一些其他内容
     try:
-        title = tag_pair(html,'title',0)
-    except:
+        title = tag_pair(html, 'title', 0)
+    except SubstringNotFoundError:
         print('title为空')
         title = ''
-    
+
     try:
-        css = tag_pair(html,'style',1)
-    except:
+        css = tag_pair(html, 'style', 1)
+    except SubstringNotFoundError:
         print('css为空')
         css = ''
-    
+
     try:
-        block = tag_pair(html,'section',0)
-    except:
+        block = tag_pair(html, 'section', 0)
+    except SubstringNotFoundError:
         print('block为空')
         block = ''
 
@@ -192,23 +207,34 @@ def refine(html):
     pat_note = re.compile(r'<!-{2,}[^!]*?-{2,}>')
     match = pat_note.search(html)
     note = match.group(0)
-    pat_note_url = re.compile(r'url:[\s]*?([^\s]+)[\s]*?')
+    pat_note_url = re.compile(r'url:\s*?(\S+)\s*?')
     match = pat_note_url.search(note)
     note_url = match.group(1)
     print('HTML文件的URL为：' + note_url)
 
     classes = get_block_classes(block)
-    css_refined = modify_css(css,classes)
+    css_refined = modify_css(css, classes)
     # 注意new_classes的每个元素前都带“.”
     new_classes = get_css_class(css_refined)
     # 为了防止由于block内不含span标签（如封面）而引发的异常
     try:
-        block_refined = modify_span(block,new_classes)
-    except:
+        block_refined = modify_span(block, new_classes)
+    except SubstringNotFoundError:
         block_refined = block
-    
-    new_html = '<!DOCTYPE html> <html lang=zh> ' + note + '<head> <meta charset=utf-8> ' + title + '<style> '+ css_refined + '</style> </head> ' +'<body> <div> ' + block_refined + '</div> </body> ' + '</html> '
 
-    refined_dict = {}
-    refined_dict[note_url] = new_html
+    new_html = ''.join([
+        '<!DOCTYPE html> <html lang=zh> ',
+        note,
+        '<head> <meta charset=utf-8> ',
+        title,
+        '<style> ',
+        css_refined,
+        '</style> </head> ',
+        '<body> <div> ',
+        block_refined,
+        '</div> </body> ',
+        '</html> '
+    ])
+
+    refined_dict = {note_url: new_html}
     return refined_dict
