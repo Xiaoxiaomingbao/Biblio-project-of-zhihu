@@ -14,7 +14,7 @@ def format_num(number):
         return '000' + str(number)
 
 
-def arrange(html_path, Images_path, accu):
+def arrange(html_path, images_path, accu):
     pat_data = re.compile(r'<img[^>]+src\s?=\s?[\'"]?([^\'">]+)[^>]*>')
     pat = re.compile(r'data:image/([a-zA-Z]+);base64,([^>\s]+)')
     # 有的书含有svg图片，能匹配上第一个模式，但匹配不上第二个模式，不予处理，但会计入图片编号
@@ -34,7 +34,7 @@ def arrange(html_path, Images_path, accu):
         data = match1.group(2)
 
         img_name = 'image' + format_num(accu) + '.' + img_type
-        img_path = os.path.join(Images_path, img_name)
+        img_path = os.path.join(images_path, img_name)
         data_bytes = data.encode("utf-8")
         decoded_bytes = base64.b64decode(data_bytes)
         with open(img_path, 'wb') as f:

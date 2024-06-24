@@ -5,13 +5,25 @@ from pythonds.basic import Stack
 
 class SubstringNotFoundError(Exception):
     """自定义异常：找不到指定的子串"""
+
     def __init__(self, substring):
         super().__init__(f"Element '{substring}' not found.")
         self.sub = substring
 
 
 def tag_pair(text, tag_name, order):
-    """用来获取一对不带属性的标签间的字符串，只找出现的第一对标签，order为真则返回的字符串不含两侧标签"""
+    """获取不带属性的标签对之间的字符串，不含标签对本身，找不到则抛出SubstringNotFoundError异常。
+    order为假，只找第一对标签；order为真，找出所有标签对。只取style标签的内容中.ZhihuEPub后方的{}内样式设置。"""
+    if order:
+        returned = ''
+        while 1:
+            try:
+                temp = tag_pair(text, tag_name, 1)
+                returned = returned + select_css(temp)
+            except SubstringNotFoundError:
+                break
+        return returned
+
     if not hasattr(tag_pair, 'saved'):
         tag_pair.saved = 0
     st = '<' + tag_name + '>'
@@ -31,13 +43,28 @@ def tag_pair(text, tag_name, order):
     if end is None:
         raise SubstringNotFoundError(nd)
     tag_pair.saved = end
-    if order:
-        return text[start:end + 1]
-    else:
-        return text[start - len(st):end + len(nd) + 1]
+    return text[start:end + 1]
+
+
+def select_css(style):
+    start = 0
+    selected_css = ''
+    while 1:
+        try:
+            start = style.index('.ZhihuEPub', start, len(style) - 1)
+            try:
+                end = style.index('}', start, len(style) - 1)
+                selected_css = selected_css + style[start: end + 1]
+                start = end
+            except ValueError:
+                print('找不到“}”')
+        except ValueError:
+            break
+    return selected_css
 
 
 def get_selector_text(selector):
+    """从selector对象中获得属性selectorText的属性值"""
     select = str(selector)
     pat_selector = re.compile(r'selectorText=\'(.+)\'', flags=0)
     match = pat_selector.search(select)
@@ -45,6 +72,7 @@ def get_selector_text(selector):
 
 
 def get_css_class(css):
+    """获得CSS中全部选择器所涉及的类，返回集合，注意其中的类名带“.”"""
     css_class = set()
     # 创建CSS解析器
     parser = cssutils.CSSParser()
@@ -53,15 +81,15 @@ def get_css_class(css):
     for rule in sheet:
         if rule.type == rule.STYLE_RULE:
             selectors = rule.selectorList
-            pat1 = re.compile(r'\.[\w-]+')
+            pat = re.compile(r'\.[\w-]+')
             for selector in selectors:
                 selector = get_selector_text(selector)
-                css_class.update(pat1.findall(selector))
-    # 注意这里的class名带“.”
+                css_class.update(pat.findall(selector))
     return css_class
 
 
 def get_block_classes(block):
+    """获得正文部分全部标签的类属性，返回集合"""
     classes = set()
     pat_tag_st = re.compile(r'<[^/][^>]*?>')
     for match in pat_tag_st.finditer(block):
@@ -124,7 +152,7 @@ def modify_css(css, classes):
 
 
 def get_tag_class(tag):
-    # 只针对标签（前半部分），默认只有一个class属性
+    """获取标签前半部分中的类属性（默认只有一个类属性，且属性值中无空格）"""
     pat_class = re.compile(r'class\s*?=\s*?[\'"]*?([\w-]+)[\'"]*?')
     try:
         match = pat_class.search(tag)
@@ -138,9 +166,10 @@ def get_tag_class(tag):
 
 
 def modify_span(html, classes):
+    """输入正文部分的HTML代码，根据有用的CSS的类属性去除span标签的无用成分"""
     new_html = ''
 
-    # 先遍历span标签，这里只考虑span的class属性
+    # 先遍历span标签，要考虑到span标签除类属性外还可能有其他属性，类属性无用只删类属性
     pat_span_st = re.compile(r'<span[^>]*?>')
     pat_span_nd = re.compile(r'</span[^>]*?>')
     span_st = []
@@ -184,7 +213,7 @@ def modify_span(html, classes):
 
 
 def refine(html):
-    # 提取出CSS和所需块元素的文本字符串，当然还有一些其他内容
+    """精简HTML文本，去除无用成分"""
     try:
         title = tag_pair(html, 'title', 0)
     except SubstringNotFoundError:
@@ -212,28 +241,23 @@ def refine(html):
     note_url = match.group(1)
     print('HTML文件的URL为：' + note_url)
 
-    classes = get_block_classes(block)
-    css_refined = modify_css(css, classes)
-    # 注意new_classes的每个元素前都带“.”
-    new_classes = get_css_class(css_refined)
-    # 为了防止由于block内不含span标签（如封面）而引发的异常
-    try:
-        block_refined = modify_span(block, new_classes)
-    except SubstringNotFoundError:
-        block_refined = block
+    # 处理span标签
+    useful_class = get_css_class(css)
+    block = modify_span(block, useful_class)
+    # 处理img标签
 
     new_html = ''.join([
-        '<!DOCTYPE html> <html lang=zh> ',
+        '<?xml version="1.0" encoding="utf-8"?> ',
+        '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"> ',
+        '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN"> ',
         note,
-        '<head> <meta charset=utf-8> ',
+        '<head> <title> ',
         title,
-        '<style> ',
-        css_refined,
-        '</style> </head> ',
-        '<body> <div> ',
-        block_refined,
-        '</div> </body> ',
-        '</html> '
+        '</title> <style> ',
+        css,
+        '</style> </head> <body> <div> ',
+        block,
+        '</div> </body> </html> '
     ])
 
     refined_dict = {note_url: new_html}
